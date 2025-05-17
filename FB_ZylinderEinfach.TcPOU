@@ -1,0 +1,933 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_ZylinderEinfach" Id="{ba0e4648-01dd-4a80-8b07-2a7a87d4d967}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_ZylinderEinfach
+(*
+VersionsNr:		1.32
+VersionsDatum:	04.09.2020
+
+VersionsNr:		1.00
+VersionsDatum:	21.03.2003
+Autor:		R.Sturm
+Funktion:		Handling eines Zylinders
+			- Ein/Ausfahren eines Zylinders mit/ohne Rückmeldung über Input
+			- Aufruf über Jobnummer incl.Rückmeldung
+			  Es kann jederzeit zwischen den Job's gewechselt werden.
+
+			'IwMode':  0 = ein-/ausfahren über Zeit
+			           1 = einfahren Input, ausfahren Zeit
+			           2 = einfahren Zeit, ausfahren Input
+			           3 = ein-/ausfahren Input
+			          11 = einfahren Input, ausfahren Zeit + Input einfahren muss aus sein
+	      		    22 = einfahren Zeit + Input ausfahren muss aus sein, ausfahren Input
+
+Geändert:		A.Schildmeier	04.09.2020     V 1.33
+	- Einfahren in Grundstellung und Ausfahren in Arbeitsstellung geändert
+	  (kompletter Baustein) 
+
+Geändert:		A.Schildmeier	04.09.2020     V 1.32
+	- Bei der Überwachung TiBewegungsUeberwachung (dass beide Inis belegt sind) entfernt, dass er erst einen Job gefahren haben muss
+	  iLastJobAktiv <> eJob_KeinJob gelöscht
+	  (UpMeldungen) 
+
+Geändert:		A.Schildmeier	25.10.2019     V 1.31
+	- Eingang IsSicherheitOK an mehreren stellen eingebaut (äquivalent zu FB_BahnV2)
+	  (UpSchrittkette, UpAusgaben) 
+
+	- TiUeberwachung jetzt FB_TON_Pause (äquivalent zu FB_BahnV2)
+	  (UpZeiten)
+
+Geändert:		A.Schildmeier	08.03.2017     V 1.30
+	- Eingang IsSicherheitOK hinzugefuegt um die Meldung OsMStoerungAntrieb zu sperren
+	  (UpMeldungen) 
+
+Geändert:		A.Schildmeier	24.08.2016     V 1.29
+	-  'iLastJobAktiv' wird auf 'eJob_KeinJob' gesetzt, 
+          wenn eine Bewegung in Hand gemacht wird. die Bewegungsüberwachungen schlugen sonst zu
+	  (UpHand) 
+
+	-  'Sket = 9' wird auch verlassen, wenn 'IwDoJob = eJob_KeinJob' ist.
+	  (UpSchritkette) 
+
+
+
+Geändert:		A.Schildmeier	10.10.2014     V 1.28
+	-  'OwStatus' wird auf 'eStat_Stoerung' gesetzt, 
+          wenn 'OsMPositionsUeberwachung_Ein','OsMPositionsUeberwachung_Aus' oder 'OsMBewegungsUeberwachung' aktiv.
+	  (UpAusgaben) 
+
+Geändert:		M.Richter	06.08.2014     V 1.27
+	- Im Testbetrieb nur noch auf Zeit nicht mehr auf IsEin/Ausgefahren achten.
+
+Geändert:		M.Richter	01.07.2014     V 1.26
+	- Neue Meldungen 'OsMPositionsUeberwachung_Ein''OsMPositionsUeberwachung_Aus''OsMBewegungsUeberwachung'
+	- Ausschaltbar. Standardmässig=TRUE
+	  (UpMeldungen)
+
+
+Geändert:		R.Sturm     03.04.2013     V 1.25
+	- Neuer Eingang 'IsOutAnlassen_Stoerung' (vorbelegt mit FALSE). Damit bleibt der Ausgang an, wenn Störung aktiv.
+	  Bisher war es so, das bei STörung der Out gelöscht wurde.
+	  (UpAusgang)
+
+	- War Automatik und Hand aus blieb der Status auf 'Bereit', 
+	  wenn in Schritt 1. Jetzt geändert auf 'Unbekannt'.
+	  (UpAusgaben) 
+	
+Geändert:		R.Sturm     15.02.2011     V 1.24
+	- 'iLastJobAktiv' jetzt vom Typ 'E_JobsHandling'
+
+	- Da ab und zu auch mit Umrichter verbunden, gibt es jetzt ein neuen Eingang 'IsStoerungAntrieb'
+	  (UpMeldungen, UpSchrittkette, UpAusgaenge, UpAusgaben)
+
+      - Neuer Eingang 'IsClearOut_NachJob'. Nach dem Job wird der Ausgang gelöscht
+
+	- Neuer Eingang 'IsOutAnlassen_Hand' (vorbelegt mit FALSE). Damit bleibt der Ausgang an, wenn Hand aktiv.
+	  Bisher war es so, das bei Hand der Out nur so lange an war, wie Taste gedrückt.
+	  (UpAusgang)
+
+	- Neue 'IwMode':
+	           11 = einfahren Input, ausfahren Zeit + Input einfahren muss aus sein
+	           22 = einfahren Zeit + Input ausfahren muss aus sein, ausfahren Input
+	(UpSchrittkette)
+
+
+Geändert:		R.Sturm     14.03.2008     V 1.23
+	- Gesetzter Ausgang wird gemerkt und nach Hand wieder gesetzt.
+	  Bisher war es so, das bei Hand alles geloescht wird.
+	  Bei Reset wird es geloescht.
+	  Ueber 'IsGesetzterOutMerken' ein-/ausschaltbar
+	  (UpReset, UpAusgang)
+
+Geändert:		M.Richter     03.09.2007     V 1.22
+	- Neuer Eingang 'IsFreigabe_Automatik', Standardmässig = TRUE
+	  Damit kann das Modul während eines Job's angehalten werden, ohne das Überwachungszeiten
+        aktiviert werden.(Einfrieren)
+	  Läuft wie, wenn Autoamtik ausgeschaltet wird, nur das jetzt Automatik an und alle Stati
+        erhalten bleiben.
+	  !!! Ausgänge werden gelöscht, wenn IsFreigabe_Automatik=FALSE !!!
+	  (UpSchrittkette, UpZeiten, UpAusgaenge) 
+	
+Geändert:		R.Sturm     22.03.2007     V 1.21
+	- Handling NotHalt. NotHalterkennung erfolgt über Eingang, damit man mit
+	  mehreren Einschaltungen zurecht kommt. War vorher nur 'fbEINS_Pos2x01'.
+	  (UpAusgaenge)
+
+
+Geändert:		R.Sturm     08.06.2005     V 1.2
+	- In 'Hand' gibt es jetzt einen 'Dauerlaufbetrieb'. Der Takt muss über 'IsHand_Takt'
+	  übergeben werden.
+	  (UpHand)
+
+Geändert:		R.Sturm     16.09.2005     V 1.1
+	- Zusätzlicher Job zum 'Drucklos' schalten
+	  (UpSchrittkette, UpZeiten, UpAusgaenge, UpAusgaben)
+
+	- Überwachung kann ein-/ausgeschaltet werden
+	
+	
+Geändert:		R.Sturm     19.03.2005     V 1.02
+	- Neues Handling bei NotHalt ueber 'IwMode_NotHalt'
+	  Wenn > 0, so wird nach NotHalt erst die andere Richtung
+	  angesteuert, dann die letzte Aktive. Wird fuer Ventile
+	  gebraucht, die ohne Ansteuerung komplett entlueften.
+	  Dadurch ensteht ein Schlag, wenn NotHalt quittiert wird und
+	  der Zylinder z.b.: unten ist, aber nach oben angesteuert war.
+
+	  'IwMode_NotHalt':     0 = kein NotHalt Handling
+			           1 = nach NotHalt erst 'ausfahren'
+			           2 = nach NotHalt erst 'einfahren'
+
+	  (UpReset, UpAusgaenge)
+
+
+Geändert:		R.Sturm     13.10.2003     V 1.01
+	- 'Fahrt in Grund' kann ausgeschaltet werden
+	  (UpSchtittkette)
+
+*)
+
+VAR_INPUT	(* Eingänge Software für Betrieb *)
+	IsHand: 				BOOL;	(* Handbetrieb *)
+	IsAutomatik:			BOOL; (* Automatikbetrieb *)
+	IsReset: 				BOOL;	(* Baustein zurücksetzen *)
+	IsQuittStoerung: 			BOOL;	(* Fehler, ... Quittieren *)
+	IsTestbetrieb:			BOOL;
+	IsNotHaltIstOK:			BOOL:= TRUE;(* V 1.21 *)
+	IsFreigabe_Automatik:		BOOL:= TRUE;(* V 1.22 *)
+	IsStoerungAntrieb:		BOOL;	(* Motorschutz/Umrichter/Keine Luft ? - V 1.24 *)
+	IsSicherheitOK:			BOOL;
+END_VAR
+
+VAR_INPUT	(* Eingänge Handbetrieb *)
+	IsTHandVor:				BOOL;
+	IsTHandZurueck:			BOOL;
+
+	IsDauerlauf_Aktivieren:		BOOL;	(* V 1.12 *)
+	IsHand_Takt:			BOOL;	(* V 1.12 *)
+END_VAR
+
+
+VAR_INPUT	(* Hardware Eingänge *)
+	IsGrundstellung:			BOOL;
+	IsArbeitsstellung:		BOOL;
+END_VAR
+
+VAR_INPUT (* Dateneingänge *)
+	IwMode:				INT:= 0;
+	IwMode_NotHalt:			INT:= 0;	(* V 1.02 *)
+	IwDoJob:				E_JobsHandling;
+
+	IsFreigabeGrundposition:	BOOL;
+	IsGrundpositionArbeitsstellung:BOOL;	(* Bei 'Fahrt in Grund' ausfahren *)
+	IsKeineGrundposition:		BOOL;	(* Bei 'Fahrt in Grund' alles so stehenlassen  - 1.01 *)
+	IsOhneUeberwachung:		BOOL:= FALSE;	(* 1.1 *)
+	IsGesetzterOutMerken:		BOOL:= FALSE;	(* 1.23 *)
+	IsClearOut_NachJob:		BOOL:= FALSE;	(* 1.24 *)
+	IsOutAnlassen_Hand:		BOOL:= FALSE;	(* 1.24 *)
+	IsOutAnlassen_Stoerung:		BOOL:= FALSE;	(* 1.25 *)
+	IsPositionsUeberwachung:	BOOL:= TRUE;	(* V 1.26 *)
+	IsBewegungsUeberwachung:	BOOL:= TRUE;	(* V 1.26 *)
+
+	IwBisGrundstellung:		TIME;
+	IwBisArbeitsstellung:		TIME;
+	IwMaxLaufzeitZylinder:		TIME;
+	IwBisDrucklos:			TIME;	(* V 1.1 *)
+END_VAR
+
+VAR_OUTPUT	(* Hardware Ausgänge *)
+	OsGrundstellung:			BOOL;
+	OsArbeitsstellung:		BOOL;
+END_VAR
+
+VAR_OUTPUT (* Signale an andere *)
+	OwJobAktiv:				E_JobsHandling;
+	OwStatus:				E_SektionsStatus;
+	OwAblaufStatus:			INT;
+END_VAR
+
+VAR_OUTPUT (* Meldungen *)
+	OsMStoerungAntrieb:		BOOL;	(* V 1.24 *)
+	OsMMaxLaufzeit_Ein:		BOOL;
+	OsMMaxLaufzeit_Aus:		BOOL;
+
+	OsMPositionsUeberwachung_Ein:	BOOL;	(* V 1.26 *)
+	OsMPositionsUeberwachung_Aus:	BOOL;	(* V 1.26 *)
+	OsMBewegungsUeberwachung:	BOOL;	(* V 1.26 *)
+END_VAR
+
+VAR (* Ablauf *)
+	xNotHalt:				BOOL;	(* V 1.02 *)
+	TiNotHalt:	 			TON;	(* V 1.02 *)
+
+	iAkt_Out:				INT;	(* V 1.23 *)
+	iLastJobAktiv:			E_JobsHandling;	(* V 1.24 *)
+END_VAR
+
+VAR	(* Handfunktionen *)
+	xHand_Vor:				BOOL;
+	xHand_Zurueck:			BOOL;
+
+	xHand_Dauerlauf_Aktiv:		BOOL;				(* V 1.12 *)
+	fbTaster_Dauerlauf:		FB_Taster_Ein_Aus_Zeit;	(* V 1.12 *)
+END_VAR
+
+VAR (* Überwachung Laufzeit *)
+	xUeberwachungTimerAbgelaufen: BOOL;
+	TiUeberwachung: 			FB_TON_Pause;		(* V 1.31 *)
+	tUeberwachungTimerZeitwert: 	TIME;
+
+	TiPositionsUeberwachung_Ein:	TON;	(* V 1.26 *)
+	TiPositionsUeberwachung_Aus:	TON;	(* V 1.26 *)
+	TiBewegungsUeberwachung:	TON;	(* V 1.26 *)
+END_VAR
+
+VAR (*Schrittkette*)
+	SKetTimerReset: 		BOOL;
+	SKetTimerAbgelaufen: 	BOOL;
+	SKet: 			INT;
+	SketRueckkehrwert:	INT;
+	TiSKet: 			TON;
+	SKetTimerZeitwert: 	TIME;
+END_VAR
+
+VAR (*Debug*)
+	SKetIndexAlt: 		INT;
+	SKetIndexAltAnz: 		INT;
+	DebugSKet: 			FB_Debug_Sket;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+
+Up_01_Meldungen();
+Up_02_Reset();
+Up_03_Hand();
+Up_04_Schrittkette();
+Up_05_Zeiten();
+Up_06_Ausgaenge();
+Up_07_Ausgaben();]]></ST>
+    </Implementation>
+    <Action Name="Up_01_Meldungen" Id="{0721f44c-d677-424e-acf2-527fd0851b8f}">
+      <Implementation>
+        <ST><![CDATA[(*-------------------------*)
+(*-------------------------*)
+(* Meldungen               *)
+(*-------------------------*)
+(*-------------------------*)
+
+OsMStoerungAntrieb:=
+	IsStoerungAntrieb					(* Text ausgeben *)
+	AND	IsSicherheitOK;				(* V 1.30 *)
+
+OsMMaxLaufzeit_Aus:=
+	Sket=100
+	AND	SketRueckkehrwert=10;
+
+OsMMaxLaufzeit_Ein:=
+	Sket=100
+	AND ( SketRueckkehrwert=30
+		OR	SketRueckkehrwert=80 );
+
+
+
+TiPositionsUeberwachung_Ein (			(* V 1.26 *)
+	IN:=	iLastJobAktiv=eJob_Grundstellung
+		AND	Sket=1
+		AND	IsNotHaltIstOK
+		AND	IsSicherheitOK
+		AND	IsFreigabe_Automatik
+		AND	IsPositionsUeberwachung
+		AND NOT IsStoerungAntrieb
+		AND NOT IsGrundstellung
+		AND ( IwMode=1
+			OR	IwMode=3
+			OR	IwMode=11 ),
+	PT:= t#2s,
+	Q => OsMPositionsUeberwachung_Ein );
+
+TiPositionsUeberwachung_Aus (			(* V 1.26 *)
+	IN:=	iLastJobAktiv=eJob_Arbeitsstellung
+		AND	Sket=1
+		AND	IsNotHaltIstOK
+		AND	IsSicherheitOK
+		AND	IsFreigabe_Automatik
+		AND NOT IsStoerungAntrieb
+		AND	IsPositionsUeberwachung
+		AND NOT IsArbeitsstellung
+		AND ( IwMode=2
+			OR	IwMode=3
+			OR	IwMode=22 ),
+	PT:= t#2s,
+	Q => OsMPositionsUeberwachung_Aus );
+
+TiBewegungsUeberwachung (			(* V 1.26 / V 1.32 *)
+	IN:= Sket=1
+		AND	IsNotHaltIstOK
+		AND	IsSicherheitOK
+		AND	IsFreigabe_Automatik
+		AND NOT IsStoerungAntrieb
+		AND	IsBewegungsUeberwachung
+		AND	IsGrundstellung
+		AND	IsArbeitsstellung
+		AND	IwMode=3,
+	PT:= t#2s,
+	Q => OsMBewegungsUeberwachung );]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Up_02_Reset" Id="{c93d3402-8d38-47fd-9285-ce538d389356}">
+      <Implementation>
+        <ST><![CDATA[(*-------------------------*)
+(*-------------------------*)
+(* Reset                   *)
+(*-------------------------*)
+(*-------------------------*)
+
+IF	IsHand
+	AND	IsReset
+THEN
+	TiNotHalt.IN:= FALSE;	(* V 1.02 *)
+	xNotHalt:= FALSE;		(* V 1.02 *)
+
+	iAkt_Out:= 0;		(* V 1.23 *)
+	iLastJobAktiv:= eJob_KeinJob;
+
+	SKetTimerReset:= TRUE;
+	SKet:= 0;
+	SKetRueckkehrwert:= 0;
+	SKetTimerZeitwert:= T#10s;
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Up_03_Hand" Id="{8eac1465-f622-49ee-ad44-3c2a39d06d16}">
+      <Implementation>
+        <ST><![CDATA[(*-------------------------*)
+(*-------------------------*)
+(* Handfunktionen          *)
+(*-------------------------*)
+(*-------------------------*)
+
+IF	IsHand
+THEN
+	(*--------------- V 1.12 -------------*)
+	IF	IsDauerlauf_Aktivieren
+	THEN
+		fbTaster_Dauerlauf ( IsInput:= IsTHandVor OR IsTHandZurueck, IOsOut:= xHand_Dauerlauf_Aktiv );
+	ELSE
+		xHand_Dauerlauf_Aktiv:= FALSE;
+	END_IF;
+
+	IF	xHand_Dauerlauf_Aktiv
+	THEN
+		xHand_Vor:= IsHand_Takt;
+		xHand_Zurueck:= NOT IsHand_Takt;
+	ELSE
+		xHand_Vor:=
+			IsTHandVor
+			AND NOT IsTHandZurueck
+			AND NOT IsDauerlauf_Aktivieren;
+
+		xHand_Zurueck:=
+			IsTHandZurueck
+			AND NOT IsTHandVor
+			AND NOT IsDauerlauf_Aktivieren;
+	END_IF;
+	(*--------------- V 1.12 -------------*)
+ELSE
+	xHand_Vor:= FALSE;
+	xHand_Zurueck:= FALSE;
+	xHand_Dauerlauf_Aktiv:= FALSE;	(* V 1.12 *)
+END_IF;
+
+(*--------------- V 1.29 -------------*)
+IF	xHand_Vor
+	OR	xHand_Zurueck
+THEN
+	iLastJobAktiv:= eJob_KeinJob;
+END_IF;
+(*--------------- V 1.29 -------------*)]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Up_04_Schrittkette" Id="{0e09738b-69c2-4344-869a-eddd21b44cd1}">
+      <Implementation>
+        <ST><![CDATA[(*Schrittkette*)
+SKetIndexAltAnz:=SKetIndexAlt;
+SKetIndexAlt:= SKet;(* Altwert sichern zum Debugen*)
+
+(*---------------------------------------------*)
+(* Wiederanlauf                                *)
+(*---------------------------------------------*)
+
+IF	IsAutomatik
+	AND NOT SKetTimerReset
+	AND NOT IsStoerungAntrieb		(* V 1.24 *)
+	AND	Sket=0				(* Wiederanlauf *)
+THEN
+	(*------ V 1.01 ------*)
+	IF	IsFreigabeGrundposition
+	THEN
+		iLastJobAktiv:= eJob_KeinJob;
+		Sket:= 80;
+		SketTimerReset:= TRUE;
+	ELSIF	IsKeineGrundposition
+	THEN
+		iLastJobAktiv:= eJob_KeinJob;
+		Sket:= 1;
+		SketTimerReset:= TRUE;
+	END_IF;
+	(*--------------------*)
+END_IF;
+
+
+IF	IsAutomatik
+	AND	IsFreigabe_Automatik		(* V 1.22 *)
+	AND	IsSicherheitOK			(* V 1.31 *)
+	AND NOT SKetTimerReset
+THEN
+	CASE SKet
+	OF
+
+	0:	;(* Wiederanlauf *)
+
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+		(* Warten auf Job                              *)
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+
+	1:	CASE	IwDoJob
+		OF
+			eJob_Arbeitsstellung:
+				iLastJobAktiv:= IwDoJob;
+				Sket:= 10;
+				SKetTimerReset:= TRUE;
+
+			eJob_Grundstellung:
+				iLastJobAktiv:= IwDoJob;
+				Sket:= 30;
+				SKetTimerReset:= TRUE;
+
+			(*------------- V 1.1 ----------*)
+			eJob_Drucklos:
+				iLastJobAktiv:= IwDoJob;
+				Sket:= 40;
+				SKetTimerReset:= TRUE;
+			(*------------- V 1.1 ----------*)
+		END_CASE;
+
+	9:	IF	IwDoJob <> iLastJobAktiv
+			OR	IwDoJob = eJob_KeinJob	(* V 1.29 *)
+		THEN
+			Sket:= 1;				(* = bereit für Job *)
+			SKetTimerReset:= TRUE;
+		END_IF;
+
+
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+		(* Ausfahren                                   *)
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+
+	10:	IF  	( IsArbeitsstellung
+				AND NOT IsTestbetrieb )		(* V 1.27 *)
+			OR ( IwMode=0
+				AND	SketTimerAbgelaufen )
+			OR ( IwMode=1
+				AND	SketTimerAbgelaufen )
+			OR ( IwMode=11				(*--- V 1.24 ---*)
+				AND NOT IsGrundstellung
+				AND	SketTimerAbgelaufen )	(*--- V 1.24 ---*)
+      		OR ( IsTestbetrieb
+				AND	SketTimerAbgelaufen )
+		THEN
+			SKet:= 9;				(* = warten, das Job gelöscht *)
+			SketTimerReset:= TRUE;
+		ELSIF	IwDoJob = eJob_Grundstellung
+		THEN
+			SKet:= 1;
+			SketTimerReset:= TRUE;
+		ELSIF	xUeberwachungTimerAbgelaufen	(* fehler in Pneumatik *)
+			AND NOT IsOhneUeberwachung	(* V 1.1 *)
+		THEN
+			SketRueckkehrwert:= 10;
+			SKet:= 100;				(* = Fehler, warten auf Quittierung *)
+			SKetTimerReset:= TRUE;
+		END_IF;
+
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+		(* Einfahren                                   *)
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+
+	30:	IF  	( IsGrundstellung
+				AND NOT IsTestbetrieb )		(* V 1.27 *)
+			OR ( IwMode=0
+				AND	SketTimerAbgelaufen )
+			OR ( IwMode=2
+				AND	SketTimerAbgelaufen )
+			OR ( IwMode=22				(*--- V 1.24 ---*)
+				AND NOT IsArbeitsstellung
+				AND	SketTimerAbgelaufen )	(*--- V 1.24 ---*)
+      		OR ( IsTestbetrieb
+				AND	SketTimerAbgelaufen )
+		THEN
+			SKet:= 9;				(* = warten, das Job gelöscht *)
+			SketTimerReset:= TRUE;
+		ELSIF	IwDoJob = eJob_Arbeitsstellung
+		THEN
+			SKet:= 1;
+			SketTimerReset:= TRUE;
+		ELSIF	xUeberwachungTimerAbgelaufen	(* fehler in Pneumatik *)
+			AND NOT IsOhneUeberwachung	(* V 1.1 *)
+		THEN
+			SketRueckkehrwert:= 30;
+			SKet:= 100;				(* = Fehler, warten auf Quittierung *)
+			SKetTimerReset:= TRUE;
+		END_IF;
+
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+		(* Drucklos                     - V 1.1        *)
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+
+	40:	IF  	SketTimerAbgelaufen
+		THEN
+			SKet:= 9;				(* = warten, das Job gelöscht *)
+			SketTimerReset:= TRUE;
+		ELSIF	IwDoJob = eJob_Grundstellung
+			OR	IwDoJob = eJob_Arbeitsstellung
+		THEN
+			SKet:= 1;
+			SketTimerReset:= TRUE;
+		END_IF;
+
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+		(* Grundstellung: Ein- / Ausfahren             *)
+		(*---------------------------------------------*)
+		(*---------------------------------------------*)
+
+	80:	IF  	( IsGrundstellung
+				AND NOT IsGrundpositionArbeitsstellung )
+			OR ( IsArbeitsstellung
+				AND	IsGrundpositionArbeitsstellung )
+			OR ( IwMode=0
+				AND	SketTimerAbgelaufen )
+			OR ( IwMode=2
+				AND	SketTimerAbgelaufen )
+      		OR ( IsTestbetrieb
+				AND	SketTimerAbgelaufen )
+		THEN
+			SKet:= 1;
+			SketTimerReset:= TRUE;
+		ELSIF	xUeberwachungTimerAbgelaufen	(* fehler in Pneumatik *)
+			AND NOT IsOhneUeberwachung	(* V 1.1 *)
+		THEN
+			SketRueckkehrwert:= 80;
+			SKet:= 100;				(* = Fehler, warten auf Quittierung *)
+			SKetTimerReset:= TRUE;
+		END_IF;
+
+		(*-------------------------------------*)
+		(*-------------------------------------*)
+		(* Laufzeitüberwachung ausgelöst       *)
+		(*-------------------------------------*)
+		(*-------------------------------------*)
+
+	100:	IF	IsQuittStoerung
+		THEN
+			Sket:= 101;
+			SKetTimerReset:= TRUE;
+		END_IF;
+
+	101:	IF NOT IsQuittStoerung
+		THEN
+			Sket:= SketRueckkehrwert;		(* und jetzt zurück zum Ausgangspunkt *)
+			SKetTimerReset:= TRUE;
+		END_IF;
+
+	ELSE
+		DebugSKet( Name:= 'FB_ZylinderEinfach',Wert1:= SKetIndexAltAnz,Wert2:= Sket );
+	END_CASE;
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Up_05_Zeiten" Id="{022d6e94-ecf5-4983-80ef-d9bbb96130e8}">
+      <Implementation>
+        <ST><![CDATA[(*-------------------------*)
+(*-------------------------*)
+(* Zeiten für Schrittkette *)
+(*-------------------------*)
+(*-------------------------*)
+
+CASE Sket
+OF
+	10:
+		SKetTimerZeitwert:= IwBisArbeitsstellung;
+
+	(*------------- V 1.1 -----------*)
+	40:
+		SKetTimerZeitwert:= IwBisDrucklos;
+	(*------------- V 1.1 -----------*)
+
+	30,80:
+		SKetTimerZeitwert:= IwBisGrundstellung;
+END_CASE;
+
+CASE	Sket	(* Laufzeit-Überwachung *)
+OF
+	10,30,80:
+		tUeberwachungTimerZeitwert:=IwMaxLaufzeitZylinder;
+END_CASE;
+
+TiSKet.IN:=
+	NOT SKetTimerReset
+	AND	IsAutomatik
+	AND	IsFreigabe_Automatik;		(* V 1.22 *)
+
+TiUeberwachung.IN:=
+	NOT SKetTimerReset
+	AND	IsAutomatik
+	AND	IsFreigabe_Automatik;		(* V 1.22 *)
+
+(*------------- V 1.31 -----------*)
+TiUeberwachung.Pause:=
+	NOT IsAutomatik
+	OR NOT IsFreigabe_Automatik
+	OR NOT OsGrundstellung
+		AND NOT OsArbeitsstellung;
+(*------------- V 1.31 -----------*)
+
+TiSket(PT:=SKetTimerZeitwert);   			(* TON *)
+SKetTimerAbgelaufen:=TiSKet.Q;
+
+TiUeberwachung(PT:=tUeberwachungTimerZeitwert);	(* TON *)
+xUeberwachungTimerAbgelaufen:=TiUeberwachung.Q;
+
+SKetTimerReset:= FALSE;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Up_06_Ausgaenge" Id="{79538e4e-5f46-42dc-94c4-9784242657de}">
+      <Implementation>
+        <ST><![CDATA[(*-------------------------*)
+(*-------------------------*)
+(* Ausgänge                *)
+(*-------------------------*)
+(*-------------------------*)
+
+IF	IsAutomatik
+	AND NOT xNotHalt
+	AND	IsFreigabe_Automatik		(* V 1.22 *)
+	AND	IsSicherheitOK
+THEN
+	(*------------- V 1.23 -----------*)
+	CASE	Sket
+	OF
+	10:
+		OsArbeitsstellung:=
+			NOT IsStoerungAntrieb		(* V 1.24 *)
+			OR	IsOutAnlassen_Stoerung;	(* V 1.25 *)
+
+		OsGrundstellung:= FALSE;
+		iAkt_Out:= 1;
+	30:
+		OsArbeitsstellung:= FALSE;
+		OsGrundstellung:=
+			NOT IsStoerungAntrieb		(* V 1.24 *)
+			OR	IsOutAnlassen_Stoerung;	(* V 1.25 *)
+		iAkt_Out:= 2;
+
+	(*------------- V 1.1 -----------*)
+	40:
+		OsArbeitsstellung:= FALSE;
+		OsGrundstellung:= FALSE;
+		iAkt_Out:= 0;
+	(*------------- V 1.1 -----------*)
+
+	80:
+		IF	IsGrundpositionArbeitsstellung
+		THEN
+			OsArbeitsstellung:=
+				NOT IsStoerungAntrieb		(* V 1.24 *)
+				OR	IsOutAnlassen_Stoerung;	(* V 1.25 *)
+
+			OsGrundstellung:= FALSE;
+			iAkt_Out:= 1;
+		ELSE
+			OsArbeitsstellung:= FALSE;
+			OsGrundstellung:=
+				NOT IsStoerungAntrieb		(* V 1.24 *)
+				OR	IsOutAnlassen_Stoerung;	(* V 1.25 *)
+			iAkt_Out:= 2;
+		END_IF;
+	(*------------- V 1.24 ------------*)
+	ELSE
+		IF	IsClearOut_NachJob
+		THEN
+			OsArbeitsstellung:= FALSE;
+			OsGrundstellung:= FALSE;
+		END_IF;
+	(*------------- V 1.24 ------------*)
+	END_CASE;
+
+	IF	IsGesetzterOutMerken
+	THEN
+		CASE	iAkt_Out
+		OF
+		0:	OsArbeitsstellung:= FALSE;
+			OsGrundstellung:= FALSE;
+
+		1:	OsArbeitsstellung:=
+				NOT IsStoerungAntrieb		(* V 1.24 *)
+				OR	IsOutAnlassen_Stoerung;	(* V 1.25 *)
+			OsGrundstellung:= FALSE;
+
+		2:	OsArbeitsstellung:= FALSE;
+			OsGrundstellung:=
+				NOT IsStoerungAntrieb		(* V 1.24 *)
+				OR	IsOutAnlassen_Stoerung;	(* V 1.25 *)
+		END_CASE;
+	END_IF;
+	(*------------- V 1.23 -----------*)
+ELSE
+	(*------------- V 1.24 -----------*)
+	IF	IsOutAnlassen_Hand
+		AND NOT IsClearOut_NachJob
+		AND	IsSicherheitOK
+	THEN
+		IF	xHand_Vor
+			AND NOT xNotHalt
+		THEN
+			OsArbeitsstellung:= TRUE;
+			OsGrundstellung:= FALSE;
+		END_IF;
+
+		IF	xHand_Zurueck
+			AND NOT xNotHalt
+		THEN
+			OsArbeitsstellung:= FALSE;
+			OsGrundstellung:= TRUE;
+		END_IF;
+	(*------------- V 1.24 -----------*)
+	ELSE
+		OsArbeitsstellung:=
+			xHand_Vor
+			AND NOT xNotHalt
+			AND	IsSicherheitOK
+			AND ( NOT IsStoerungAntrieb			(* V 1.24 *)
+				OR	IsOutAnlassen_Stoerung );	(* V 1.25 *)
+
+		OsGrundstellung:=
+			xHand_Zurueck
+			AND NOT xNotHalt
+			AND	IsSicherheitOK
+			AND ( NOT IsStoerungAntrieb			(* V 1.24 *)
+				OR	IsOutAnlassen_Stoerung );	(* V 1.25 *)
+	END_IF;
+END_IF;
+
+(*
+-----------------------------------------
+-----------------------------------------
+   Sonderhandling bei NotHalt     V 1.02/1.21 
+
+Bei NotHalt wird gespeichert, welcher Ausgang
+aktiv ist. Nach NotHalt wird erst der andere
+Ausgang gesetzt, eine Zeit gewartet und dann
+der zuletzt aktive Ausgang gesetzt.
+-----------------------------------------
+-----------------------------------------
+*)
+
+IF NOT IsNotHaltIstOK
+	AND	IwMode_NotHalt > 0
+	AND NOT xNotHalt
+THEN
+	xNotHalt:= TRUE;
+END_IF
+
+IF	IsNotHaltIstOK
+	AND	xNotHalt
+	AND	IsSicherheitOK
+	AND NOT TiNotHalt.IN
+THEN
+	OsArbeitsstellung:= ( IwMode_NotHalt=1 );
+	OsGrundstellung:= ( IwMode_NotHalt=2 );
+	TiNotHalt.IN:= TRUE;
+END_IF;
+
+IF	IsNotHaltIstOK
+	AND	xNotHalt
+	AND	TiNotHalt.IN
+	AND	TiNotHalt.Q
+THEN
+	OsArbeitsstellung:= ( IwMode_NotHalt=2 );
+	OsGrundstellung:= ( IwMode_NotHalt=1 );
+	TiNotHalt.IN:= FALSE;
+	xNotHalt:= FALSE;
+END_IF;
+
+TiNotHalt (PT:= T#2s);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Up_07_Ausgaben" Id="{41708cec-9f44-4539-8e49-a2cc121d17dc}">
+      <Implementation>
+        <ST><![CDATA[(*-------------------------*)
+(*-------------------------*)
+(* Signale an Andere       *)
+(*-------------------------*)
+(*-------------------------*)
+
+(*--------------------------------------------*)
+(* Ablauf-Status für Diagnose an extern     *)
+(*--------------------------------------------*)
+
+OwAblaufStatus:= Sket;
+
+(*---------------------------------------------*)
+(* Status an Extern                           *)
+(*---------------------------------------------*)
+
+IF	SKet=100
+	OR	Sket=101
+	OR 	IsStoerungAntrieb		(* V 1.24 *)
+	OR	OsMPositionsUeberwachung_Ein		(* V 1.28 *)
+	OR	OsMPositionsUeberwachung_Aus		(* V 1.28 *)
+	OR	OsMBewegungsUeberwachung		(* V 1.28 *)
+	OR NOT IsSicherheitOK				(* V 1.31 *)
+THEN
+	OwStatus:= iStoerung;
+
+ELSIF	IsHand
+THEN
+	OwStatus:= iHand;
+ELSE
+	CASE	Sket
+	OF
+		1,9:
+			IF	IsAutomatik
+			THEN
+				OwStatus:= iAutomatikBereitJob;
+			ELSE						(* V 1.25 *)
+				OwStatus:= iUnbekannt;	(* V 1.25 *)
+			END_IF;
+
+		10..79:
+			OwStatus:= iAutomatikAktivJob;
+
+		80..89:
+			OwStatus:= iFahrtGrund;
+		ELSE
+			OwStatus:= iUnbekannt;
+	END_CASE;
+END_IF;
+
+
+(*---------------------------------------------*)
+(* Job aktiv an extern                       *)
+(*---------------------------------------------*)
+
+CASE	Sket
+OF
+	0,1:
+		OwJobAktiv:= eJob_KeinJob;
+	10..19:
+		OwJobAktiv:= eJob_Arbeitsstellung;
+	30..39:
+		OwJobAktiv:= eJob_Grundstellung;
+	40..49:					(* V 1.1 *)
+		OwJobAktiv:= eJob_Drucklos;
+	80..89:
+		OwJobAktiv:= eJob_Grund;
+END_CASE;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="FB_ZylinderEinfach">
+      <LineId Id="256" Count="8" />
+    </LineIds>
+    <LineIds Name="FB_ZylinderEinfach.Up_01_Meldungen">
+      <LineId Id="0" Count="62" />
+    </LineIds>
+    <LineIds Name="FB_ZylinderEinfach.Up_02_Reset">
+      <LineId Id="0" Count="19" />
+    </LineIds>
+    <LineIds Name="FB_ZylinderEinfach.Up_03_Hand">
+      <LineId Id="0" Count="44" />
+    </LineIds>
+    <LineIds Name="FB_ZylinderEinfach.Up_04_Schrittkette">
+      <LineId Id="0" Count="202" />
+    </LineIds>
+    <LineIds Name="FB_ZylinderEinfach.Up_05_Zeiten">
+      <LineId Id="0" Count="50" />
+    </LineIds>
+    <LineIds Name="FB_ZylinderEinfach.Up_06_Ausgaenge">
+      <LineId Id="0" Count="158" />
+    </LineIds>
+    <LineIds Name="FB_ZylinderEinfach.Up_07_Ausgaben">
+      <LineId Id="0" Count="67" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
